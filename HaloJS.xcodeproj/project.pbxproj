@@ -14,6 +14,7 @@
 		77E6C70218415CA400705ED5 /* SMHaloJS.m in Sources */ = {isa = PBXBuildFile; fileRef = 77E6C70118415CA400705ED5 /* SMHaloJS.m */; };
 		AD657DC418BDD79200AF5129 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AD657DC318BDD79200AF5129 /* WebKit.framework */; };
 		AD657E1318BDFFED00AF5129 /* src in Resources */ = {isa = PBXBuildFile; fileRef = AD657E1218BDFFED00AF5129 /* src */; };
+		ADF941C718BEB00200B59C8E /* JavaScriptCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ADF941C618BEB00200B59C8E /* JavaScriptCore.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +34,7 @@
 		AD657DC318BDD79200AF5129 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		AD657E1118BDF4F500AF5129 /* MDPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MDPlugin.h; sourceTree = "<group>"; };
 		AD657E1218BDFFED00AF5129 /* src */ = {isa = PBXFileReference; lastKnownFileType = folder; path = src; sourceTree = "<group>"; };
+		ADF941C618BEB00200B59C8E /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -40,6 +42,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ADF941C718BEB00200B59C8E /* JavaScriptCore.framework in Frameworks */,
 				77E6C6FF18415C4F00705ED5 /* Carbon.framework in Frameworks */,
 				77E6C6DF18415A4A00705ED5 /* Cocoa.framework in Frameworks */,
 				AD657DC418BDD79200AF5129 /* WebKit.framework in Frameworks */,
@@ -69,6 +72,7 @@
 		77E6C6DD18415A4A00705ED5 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				ADF941C618BEB00200B59C8E /* JavaScriptCore.framework */,
 				AD657DC318BDD79200AF5129 /* WebKit.framework */,
 				77E6C6FE18415C4F00705ED5 /* Carbon.framework */,
 				77E6C6DE18415A4A00705ED5 /* Cocoa.framework */,
@@ -269,6 +273,7 @@
 				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
 				CLANG_ENABLE_OBJC_ARC = NO;
 				COMBINE_HIDPI_IMAGES = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "HaloJS/HaloJS-Prefix.pch";
 				INFOPLIST_FILE = "HaloJS/HaloJS-Info.plist";

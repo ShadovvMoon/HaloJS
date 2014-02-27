@@ -24,13 +24,20 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+//Required scripts
+require("objects.js");
+
 //Script attributes
-var loop_interval = 1000; //ms
+var loop_interval = 0.2; //ms
 
 //Setup - Called when the plugin is first initialised
+var warthogs = null;
 function setup()
 {
 }
+
+
+var starttime;
 
 var map_started = false;
 function loop()
@@ -38,20 +45,35 @@ function loop()
     if (!map_started)
         return;
     
-    var p = get_player(0);
-    if (p.exists())
-        halo_console(p.x()+" "+p.y()+" "+p.z());
+    var WARTHOG_CURVE_Z_ORIGIN_OFFSET = 5;
+    var WARTHOG_CURVE_ALTITUDE = 4;
     
-    var warthogs = findObjects("warthog");
-    for (warthog in warthogs)
+    if (!warthogs)
     {
-        //halo_console(warthog.id);
+        starttime = new Date().getTime();
+        warthogs = findObjects("warthog");
+        for (i in warthogs)
+        {
+            warthogs[i].base_x = warthogs[i].x();
+            warthogs[i].base_z = warthogs[i].z()+WARTHOG_CURVE_Z_ORIGIN_OFFSET;
+        }
+    }
+    
+    var end = new Date().getTime();
+    var time = end - starttime;
+    var timeElapsed = parseFloat(time/1000.0);
+    
+    if (timeElapsed > 10)
+    for (var i=0; i<warthogs.length; i++)
+    {
+        warthogs[i].setX(parseFloat(warthogs[i].base_x + Math.cos(timeElapsed*5.0) * WARTHOG_CURVE_ALTITUDE));
+        warthogs[i].setZ(parseFloat(warthogs[i].base_z + Math.sin(timeElapsed*5.0) * WARTHOG_CURVE_ALTITUDE));
     }
 }
 
 function map_begin(map_name)
 {
-	halo_console("Loaded " + map_name);
+    updateTags();
     map_started = true;
 }
 

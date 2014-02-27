@@ -7,9 +7,38 @@
 //
 
 #import "SMHaloJS.h"
+#import "mach_override.h"
+#import <JavaScriptCore/JavaScriptCore.h>
+
+void (*consolePrintf)(int color, const char *format, ...) = (void *)0x1588a8;
+int8_t (*oldChat)(int, const uint16_t *, int);
+static int8_t textChatOverride(int unknownZero, const uint16_t *message, int unknownSize)
+{
+    JSContextRef ctx = [[javascript_webview mainFrame] globalContext];
+    JSStringRef script = JSStringCreateWithCFString((CFStringRef)@"return on_chat(c,m,i)");
+    
+    JSStringRef c = JSStringCreateWithUTF8CString("c");
+    JSStringRef m = JSStringCreateWithUTF8CString("m");
+    JSStringRef i = JSStringCreateWithUTF8CString("i");
+    JSStringRef argumentNames[] = { c,m,i };
+    JSObjectRef fn = JSObjectMakeFunction(ctx, NULL, 3, argumentNames, script, NULL, 0, NULL);
+    
+    NSString *ocmessage = [NSString stringWithFormat:@"%S", message];
+    JSStringRef jsmessage = JSStringCreateWithCFString((CFStringRef)ocmessage);
+    
+    JSValueRef  arguments[3];
+    arguments[0] = JSValueMakeNumber(ctx, unknownZero);
+    arguments[1] = JSValueMakeString(ctx, jsmessage);
+    arguments[2] = JSValueMakeNumber(ctx, unknownSize);
+    
+    JSValueRef return_value = JSObjectCallAsFunction(ctx, fn, NULL, 3, arguments, NULL);
+    BOOL returned_number = JSValueToBoolean(ctx, return_value);
+    if (returned_number)
+        return oldChat(unknownZero, message, unknownSize);
+    return 0;
+}
 
 @implementation SMHaloJS
-
 
 - (id)initWithMode:(MDPluginMode)mode
 {
@@ -24,17 +53,13 @@
         scriptObject = [javascript_webview windowScriptObject];
         [scriptObject setValue:self forKey:@"objc"];
         
-        [self executeScript:@"jquery.js"];
         [self executeScript:@"halojs.js"];
         
-        [self runScript:@"setup();"];
-        
-        float loop_interval = [[self runScript:@"loop_interval"] floatValue];
-        [NSTimer scheduledTimerWithTimeInterval:loop_interval/1000.0 target:self selector:@selector(loopFunction:) userInfo:@"run_loop();" repeats:YES];
+        //Override functions
+        mach_override_ptr((void *)0x14D9A4, textChatOverride, (void **)&oldChat);
 	}
 	return self;
 }
-
 
 - (void)mapDidBegin:(NSString *)mapName
 {
@@ -48,7 +73,6 @@
 
 //Methods for javascript file
 //--------------------------------
-void (*consolePrintf)(int color, const char *format, ...) = (void *)0x1588a8;
 -(void)hconsole:(NSString*)message :(NSNumber*)color
 {
     const char *string = [message cStringUsingEncoding:NSUTF8StringEncoding];
@@ -58,10 +82,32 @@ void (*consolePrintf)(int color, const char *format, ...) = (void *)0x1588a8;
 {
     NSLog(@"%@", message);
 }
-
 -(void)require:(NSString*)script
 {
     [self executeScript:script];
+}
+-(void)callbackTimer:(NSTimer*)t
+{
+    WebScriptObject *callback = [t userInfo];
+    JSObjectRef ref = [callback JSObject];
+    JSContextRef ctx = [[javascript_webview mainFrame] globalContext];
+    JSObjectCallAsFunction(ctx, ref, NULL, 0, NULL, NULL);
+}
+-(void)timer:(WebScriptObject*)callback :(NSNumber*)interval
+{
+    [NSTimer scheduledTimerWithTimeInterval: [interval floatValue]/1000.0
+                                     target:self
+                                   selector:@selector(callbackTimer:)
+                                   userInfo:callback
+                                    repeats:YES];
+}
+
+//Code caves
+//--------------------------------
+-(NSNumber*)halochatfunction:(NSNumber*)color :(NSString*)message :(NSNumber*)size
+{
+    const uint16_t *msg = [[message dataUsingEncoding:NSUTF16StringEncoding] bytes];
+    return [NSNumber numberWithChar:oldChat([color intValue], (const uint16_t*)msg, [size intValue])];
 }
 
 //Value reading
@@ -135,6 +181,15 @@ void (*consolePrintf)(int color, const char *format, ...) = (void *)0x1588a8;
     return stringRepresentation;
 }
 
+//Value writing
+//--------------------------------
+-(void)writeFloat:(NSNumber*)pointer :(NSNumber*)value
+{
+    mach_vm_address_t address = [pointer intValue];
+    float v = [value floatValue];
+    memcpy((void*)address, &v, 4);
+}
+
 //Supported methods
 //--------------------------------
 + (NSString *) webScriptNameForSelector:(SEL)sel
@@ -154,28 +209,24 @@ void (*consolePrintf)(int color, const char *format, ...) = (void *)0x1588a8;
         name = @"readInt32";
     else if (sel == @selector(readFloat:))
         name = @"readFloat";
+    else if (sel == @selector(writeFloat::))
+        name = @"writeFloat";
     else if (sel == @selector(memcompare::))
         name = @"memcompare";
     else if (sel == @selector(readUTF8String:))
         name = @"readUTF8String";
     else if (sel == @selector(readUTF16String:))
         name = @"readUTF16String";
+    else if (sel == @selector(timer::))
+        name = @"timer";
+    else if (sel == @selector(halochatfunction:::))
+        name = @"halochatfunction";
     return name;
 }
-
+//-(NSNumber*)halochatfunction:(NSNumber*)color :(NSString*)message :(NSNumber*)size
 + (BOOL)isSelectorExcludedFromWebScript:(SEL)sel
 {
-    if (sel == @selector(console:)||
-        sel == @selector(require:)||
-        sel == @selector(hconsole::)||
-        sel == @selector(readInt8:)||
-        sel == @selector(readInt16:)||
-        sel == @selector(readInt32:)||
-        sel == @selector(memcompare::)||
-        sel == @selector(readUTF8String:)||
-        sel == @selector(readUTF16String:)||
-        sel == @selector(readFloat:)) return NO;
-    return YES;
+    return ([SMHaloJS webScriptNameForSelector:sel] == nil);
 }
 
 //Javascript execution functions
@@ -204,8 +255,20 @@ void (*consolePrintf)(int color, const char *format, ...) = (void *)0x1588a8;
 
 - (id)runScript:(NSString*)code
 {
+    JSValueRef script_exception = NULL;
+    JSContextRef ctx = [[javascript_webview mainFrame] globalContext];
+    
+    JSStringRef src = JSStringCreateWithCFString((CFStringRef)code);
+    JSCheckScriptSyntax(ctx, src, NULL, 0, &script_exception);
+    
+    if (script_exception)
+    {
+        CFStringRef error = JSStringCopyCFString(CFAllocatorGetDefault(), JSValueToStringCopy(ctx, script_exception, nil));
+        NSLog(@"%@", (NSString*)error);
+    }
+    
 	NSString* script = [NSString stringWithFormat:@"try { %@ } catch (e) { e.toString() }", code];
-	id data = [scriptObject evaluateWebScript:script];
+	id data = [scriptObject evaluateWebScript:code];
 	if(![data isMemberOfClass:[WebUndefined class]] && ![data isMemberOfClass:[WebScriptObject class]] && ![NSStringFromClass([data class]) isEqualToString:@"__NSCFNumber"])
     {
 		NSLog(@"Error: %@ %@", data, NSStringFromClass([data class]));

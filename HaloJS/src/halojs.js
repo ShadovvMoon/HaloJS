@@ -42,7 +42,15 @@ function halo_console(message, color)
 var console = {};
 console.log = function(message)
 {
-	objc.console_(message);
+    halo_console(message);
+}
+console.debug = function(message)
+{
+    objc.console_(message);
+}
+setInterval = function(callback, delay)
+{
+	objc.timer__(callback, delay);
 }
 
 //Loads a javascript file in the src directory
@@ -52,178 +60,54 @@ function require(script)
 	objc.require_(script);
 }
 
+function valid_pointer(pointer)
+{
+    return (pointer > 0);
+}
 //Reading values
 //----------------------------------------
 function memcmp(pointer, value)
 {
-    return objc.memcompare__(pointer,value);
+    if (valid_pointer(pointer)) return objc.memcompare__(pointer,value);
+    return false;
 }
 function readChar(pointer)
 {
-    return objc.readInt8_(pointer);
+    if (valid_pointer(pointer)) return objc.readInt8_(pointer);
+    return -1;
 }
 function readShort(pointer)
 {
-    return objc.readInt16_(pointer);
+    if (valid_pointer(pointer)) return objc.readInt16_(pointer);
+    return -1;
 }
 function readInt(pointer)
 {
-    return objc.readInt32_(pointer);
+    if (valid_pointer(pointer)) return objc.readInt32_(pointer);
+    return -1;
 }
 function readFloat(pointer)
 {
-    return parseFloat(objc.readFloat_(pointer));
+    if (valid_pointer(pointer)) return parseFloat(objc.readFloat_(pointer));
+    return -1;
 }
 function readUTF8String(pointer)
 {
-    return objc.readUTF8String_(pointer);
+    if (valid_pointer(pointer)) return objc.readUTF8String_(pointer);
+    return -1;
 }
 function readUTF16String(pointer)
 {
-    return objc.readUTF16String_(pointer);
+    if (valid_pointer(pointer)) return objc.readUTF16String_(pointer);
+    return -1;
 }
 
-//Helper functions
+//Reading values
 //----------------------------------------
-function objectPointer(object_id)
+function writeFloat(pointer, value)
 {
-    if (object_id < 0)
-        return -1;
-    
-    var pointer = 0x400506E8 + object_id * 12 + 0x8;
-    return readInt(pointer);
-}
-function playerObjectId(player_number)
-{
-    var pointer = 0x402AAFFC + 0x200 * player_number;
-    return readShort(pointer);
-}
-
-//Tag classes
-//----------------------------------------
-var tags = {};
-var tag_address = 0x40440028;
-var tag_array_size = 5000; //Need to read this from memory
-
-function updateTags()
-{
-    tags = {};
-    for (var i = 0; i < tag_array_size; i++)
-    {
-        if (memcmp(tag_address,"ihev"))
-        {
-            var pointer = readInt(tag_address+16);
-            var tag_id = readInt(tag_address+12);
-            var tag_name = readUTF8String(pointer);
-            tags[tag_name] = tag_id;
-        }
-        tag_address+=32;
-    }
-}
-
-//Object classes
-//----------------------------------------
-var max_players = 16;
-var max_objects = 2048;
-var dead_object = -1;
-
-function newObject()
-{
-    return new function(id)
-    {
-        this.id = id;
-        this.exists = function()
-        {
-            if (this.id < 1)
-                return false;
-            
-            return true;
-        }
-        this.pointer = function()
-        {
-            if (this.id != dead_object)
-                return objectPointer(this.id);
-            return -1;
-        }
-        this.tag_id = function()
-        {
-            var pointer = this.pointer();
-            if (pointer != dead_object)
-            {
-                return readShort(pointer + 0x2);
-            }
-            return -1;
-        }
-        this.x = function()
-        {
-            if (this.id != dead_object)
-                return readFloat(this.pointer() + 0x5c);
-            return 0.0;
-        };
-        this.y = function()
-        {
-            if (this.id != dead_object)
-                return readFloat(this.pointer() + 0x60);
-            return 0.0;
-        };
-        this.z = function()
-        {
-            if (this.id != dead_object)
-                return readFloat(this.pointer() + 0x64);
-            return 0.0;
-        };
-    };
-}
-
-var players = [];
-for (var i=0; i < max_players; i++)
-{
-    players[i] = newObject(playerObjectId(i));
-}
-var objects = [];
-for (var i=0; i < max_objects; i++)
-{
-    objects[i] = newObject(i);
-}
-
-function updatePlayers()
-{
-    if (players_updated)
-        return;
-    for (var i=0; i < max_players; i++)
-    {
-        var object_id = playerObjectId(i);
-        var player = players[i];
-        player.id = object_id;
-    }
-    players_updated = true;
-}
-function get_player(i)
-{
-    var object_id = playerObjectId(i);
-    var player = players[i];
-    player.id = object_id;
-    return player;
-}
-function findObjects(name)
-{
-    var tag_ids = [];
-    for (var tag_name in tags)
-    {
-        if (tag_name.indexOf(name) != -1)
-        {
-            tag_ids.push(tags[tag_name]);
-        }
-    }
-    var found_objects = [];
-    for (var i=0; i < max_objects; i++)
-    {
-        if (objects[i].tag_id() in tag_ids)
-        {
-            found_objects.push(objects[i]);
-        }
-    }
-    return found_objects;
+    if (valid_pointer(pointer)) return objc.writeFloat__(pointer, value);
+    return -1;
 }
 
 //Override these methods in script.js
@@ -244,15 +128,21 @@ function run_loop()
 }
 function run_map_begin(map_name)
 {
-    updateTags();
     map_begin(map_name);
 }
 function run_map_end(map_name)
 {
-    tags = {};
     map_end(map_name);
 }
 
-//Start the script
+//Code caves (override)
+//----------------------------------------
+//Return true if you want to display the chat message normally
+function on_chat(color, message, some_int) {return true;}
+
+//Start the scripts
 //----------------------------------------
 require("script.js");
+
+setup();
+setInterval(run_loop, loop_interval);

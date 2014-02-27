@@ -15,7 +15,11 @@
 
 @interface SMHaloJS : NSObject <MDPlugin>
 {
-    WebView *javascript_webview;
-    WebScriptObject *scriptObject;
+   
 }
+-(void)executeScript:(NSString*)script;
+-(id)runScript:(NSString*)code;
 @end
+
+WebView *javascript_webview;
+WebScriptObject *scriptObject;
